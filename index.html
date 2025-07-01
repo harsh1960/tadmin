@@ -33,29 +33,15 @@
             color: var(--text-color);
             display: flex;
             justify-content: center;
-            align-items: center;
+            align-items: flex-start; /* Align to top */
             min-height: 100vh;
+            padding-top: 20px; /* Add some padding at the top */
         }
 
         .container {
             width: 100%;
             max-width: 1000px;
             padding: 20px;
-        }
-
-        /* --- Login Page --- */
-        #login-page {
-            max-width: 400px;
-            background-color: var(--card-bg-color);
-            padding: 2.5rem;
-            border-radius: var(--border-radius);
-            box-shadow: var(--shadow);
-            text-align: center;
-        }
-
-        #login-page h1 {
-            margin-bottom: 1.5rem;
-            color: var(--primary-color);
         }
 
         .form-group {
@@ -91,12 +77,8 @@
         .btn:hover {
             opacity: 0.9;
         }
-
-        .btn-primary {
-            background-color: var(--primary-color);
-            width: 100%;
-        }
         
+        .btn-primary { background-color: var(--primary-color); }
         .btn-success { background-color: var(--success-color); }
         .btn-warning { background-color: var(--warning-color); }
         .btn-danger { background-color: var(--danger-color); }
@@ -104,7 +86,7 @@
 
         /* --- Admin Dashboard --- */
         #admin-dashboard {
-            display: none; /* Hidden by default */
+            display: block; /* Shown by default */
         }
 
         .dashboard-header {
@@ -138,6 +120,11 @@
             display: flex;
             gap: 1rem;
             margin-top: 1rem;
+        }
+        
+        /* Hidden input for storing doc ID during edits */
+        #edit-doc-id {
+            display: none;
         }
 
         /* --- Results Table --- */
@@ -173,8 +160,8 @@
 
         /* --- Responsive --- */
         @media(max-width: 600px) {
-            #login-page {
-                padding: 1.5rem;
+            body {
+                padding-top: 0;
             }
             .card {
                 padding: 1.5rem;
@@ -186,43 +173,25 @@
     </style>
 </head>
 <body>
-
-    <div id="login-page" class="container">
-        <h1>Admin Login</h1>
-        <form id="login-form">
-            <div class="form-group">
-                <label for="username">Username</label>
-                <input type="text" id="username" required>
-            </div>
-            <div class="form-group">
-                <label for="password">Password</label>
-                <input type="password" id="password" required>
-            </div>
-            <button type="submit" class="btn btn-primary">Login</button>
-        </form>
-    </div>
-
     <div id="admin-dashboard" class="container">
         <header class="dashboard-header">
-            <h1>Admin Dashboard</h1>
-            <button id="logout-btn" class="btn btn-danger">Logout</button>
+            <h1>Shillong Teer Admin Panel</h1>
         </header>
 
         <section class="card">
             <h2 id="form-title">Add / Update Result</h2>
             <form id="result-form">
-                
-                <div class="form-group">
+                <input type="hidden" id="edit-doc-id"> <div class="form-group">
                     <label for="date">Date</label>
                     <input type="date" id="date" required>
                 </div>
                 <div class="form-group">
                     <label for="fr-result">First Round (F/R)</label>
-                    <input type="number" id="fr-result" min="0" max="99">
+                    <input type="number" id="fr-result" min="0" max="99" placeholder="e.g., 23">
                 </div>
                 <div class="form-group">
                     <label for="sr-result">Second Round (S/R)</label>
-                    <input type="number" id="sr-result" min="0" max="99">
+                    <input type="number" id="sr-result" min="0" max="99" placeholder="e.g., 58">
                 </div>
 
                 <div class="form-actions">
@@ -255,7 +224,7 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-app.js";
         import { 
             getFirestore, collection, getDocs, addDoc, updateDoc, 
-            deleteDoc, doc, query, orderBy, limit, where, setDoc
+            deleteDoc, doc, query, orderBy, limit, where, getDoc, setDoc
         } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-firestore.js";
 
         // Your web app's Firebase configuration
@@ -268,15 +237,12 @@
           appId: "1:1068414137141:web:ee01f3a9d91f556b5b927c"
         };
 
+        // Initialize Firebase
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
         const resultsCollection = collection(db, 'teer_results');
 
         document.addEventListener('DOMContentLoaded', () => {
-            const loginPage = document.getElementById('login-page');
-            const dashboard = document.getElementById('admin-dashboard');
-            const loginForm = document.getElementById('login-form');
-            const logoutBtn = document.getElementById('logout-btn');
             const resultForm = document.getElementById('result-form');
             const resultsTbody = document.getElementById('results-tbody');
             const clearBtn = document.getElementById('clear-btn');
@@ -284,21 +250,7 @@
             const dateInput = document.getElementById('date');
             const frInput = document.getElementById('fr-result');
             const srInput = document.getElementById('sr-result');
-
-            dateInput.valueAsDate = new Date();
-
-            loginForm.addEventListener('submit', (e) => {
-                e.preventDefault();
-                if (username.value === 'admin' && password.value === '1234') {
-                    loginPage.style.display = 'none';
-                    dashboard.style.display = 'block';
-                    renderTable();
-                } else {
-                    alert('Invalid username or password.');
-                }
-            });
-
-            logoutBtn.addEventListener('click', () => { location.reload(); });
+            const editDocIdInput = document.getElementById('edit-doc-id');
 
             const renderTable = async () => {
                 resultsTbody.innerHTML = '<tr><td colspan="4">Loading results...</td></tr>';
@@ -313,92 +265,112 @@
                     querySnapshot.forEach(doc => {
                         const result = doc.data();
                         const row = document.createElement('tr');
+                        // Use the document ID for the data-id attribute
+                        row.dataset.id = doc.id; 
                         row.innerHTML = `
                             <td>${new Date(result.date + 'T00:00:00').toLocaleDateString('en-GB')}</td>
                             <td>${result.fr || '--'}</td>
                             <td>${result.sr || '--'}</td>
                             <td class="actions-cell">
-                                <button class="btn btn-warning edit-btn" data-id="${doc.id}">Edit</button>
-                                <button class="btn btn-danger delete-btn" data-id="${doc.id}">Delete</button>
+                                <button class="btn btn-warning edit-btn">Edit</button>
+                                <button class="btn btn-danger delete-btn">Delete</button>
                             </td>
                         `;
                         resultsTbody.appendChild(row);
                     });
                 } catch (error) {
                     console.error("Error fetching results: ", error);
-                    resultsTbody.innerHTML = '<tr><td colspan="4">Error loading results.</td></tr>';
+                    resultsTbody.innerHTML = `<tr><td colspan="4" style="color:red;">Error loading results: ${error.message}</td></tr>`;
                 }
             };
-
+            
             const clearForm = () => {
                 resultForm.reset();
+                editDocIdInput.value = ''; // Clear the hidden doc ID
                 formTitle.textContent = 'Add / Update Result';
+                dateInput.disabled = false; // Re-enable date input
                 dateInput.valueAsDate = new Date();
             };
 
-            // --- NEW: Smart Save/Update Logic ---
+            // --- SAVE/UPDATE Logic ---
             resultForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
 
                 const dateValue = dateInput.value;
                 const frValue = frInput.value;
                 const srValue = srInput.value;
+                const editingDocId = editDocIdInput.value;
 
-                if (!frValue && !srValue) {
+                if (!dateValue) {
+                    alert('Please select a date.');
+                    return;
+                }
+                 if (!frValue && !srValue) {
                     alert('Please enter a result for at least one round.');
                     return;
                 }
-
+                
+                const dataToSave = {
+                    date: dateValue,
+                    fr: frValue || null, // Store null if empty
+                    sr: srValue || null  // Store null if empty
+                };
+                
                 try {
-                    // Check if a document for this date already exists
-                    const q = query(resultsCollection, where("date", "==", dateValue));
-                    const querySnapshot = await getDocs(q);
-
-                    const dataToSave = {};
-                    if (frValue) dataToSave.fr = frValue;
-                    if (srValue) dataToSave.sr = srValue;
-
-                    if (querySnapshot.empty) {
-                        // Document doesn't exist, CREATE a new one
-                        await addDoc(resultsCollection, {
-                            date: dateValue,
-                            ...dataToSave
-                        });
-                        alert('Result added successfully!');
-                    } else {
-                        // Document exists, UPDATE it
-                        const docId = querySnapshot.docs[0].id;
-                        const docRef = doc(db, 'teer_results', docId);
+                    if (editingDocId) {
+                        // UPDATE existing document
+                        const docRef = doc(db, 'teer_results', editingDocId);
                         await updateDoc(docRef, dataToSave);
                         alert('Result updated successfully!');
+                    } else {
+                        // ADD new document (using date as the document ID)
+                        // This prevents duplicate entries for the same date
+                        const docRef = doc(db, 'teer_results', dateValue);
+                        await setDoc(docRef, dataToSave);
+                        alert('Result added successfully!');
                     }
                 } catch (error) {
                     console.error("Error saving result: ", error);
-                    alert("Error saving result. See console for details.");
+                    alert(`Error saving result: ${error.message}`);
                 }
-
+                
                 await renderTable();
                 clearForm();
             });
 
-            // --- NEW: Simplified Edit/Delete Logic ---
+            // --- EDIT/DELETE Logic ---
             resultsTbody.addEventListener('click', async (e) => {
                 const target = e.target;
-                const docId = target.dataset.id;
-                
+                const row = target.closest('tr');
+                if (!row) return;
+
+                const docId = row.dataset.id;
                 if (!docId) return;
 
                 // EDIT button clicked
                 if (target.classList.contains('edit-btn')) {
                     const docRef = doc(db, "teer_results", docId);
-                    const docSnap = await getDoc(docRef);
-                    if (docSnap.exists()) {
-                        const result = docSnap.data();
-                        dateInput.value = result.date;
-                        frInput.value = result.fr || '';
-                        srInput.value = result.sr || '';
-                        formTitle.textContent = `Editing Result for ${new Date(result.date + 'T00:00:00').toLocaleDateString('en-GB')}`;
-                        window.scrollTo(0, 0);
+                    try {
+                        const docSnap = await getDoc(docRef);
+                        if (docSnap.exists()) {
+                            const result = docSnap.data();
+                            
+                            // Populate the form
+                            editDocIdInput.value = docId; // Set the hidden ID
+                            dateInput.value = result.date;
+                            frInput.value = result.fr || '';
+                            srInput.value = result.sr || '';
+                            
+                            formTitle.textContent = `Editing Result for ${new Date(result.date + 'T00:00:00').toLocaleDateString('en-GB')}`;
+                            dateInput.disabled = true; // Disable date editing to prevent changing the ID
+                            
+                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                        } else {
+                            alert("Document not found!");
+                        }
+                    } catch (error) {
+                        console.error("Error fetching document for edit: ", error);
+                        alert(`Error fetching document: ${error.message}`);
                     }
                 }
 
@@ -411,13 +383,17 @@
                             await renderTable();
                         } catch (error) {
                             console.error("Error deleting document: ", error);
-                            alert("Error deleting result. See console for details.");
+                            alert(`Error deleting result: ${error.message}`);
                         }
                     }
                 }
             });
 
             clearBtn.addEventListener('click', clearForm);
+
+            // Initial load
+            clearForm(); // Set today's date on load
+            renderTable(); // Fetch and display results
         });
     </script>
 </body>
